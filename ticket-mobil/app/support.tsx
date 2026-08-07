@@ -2,9 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, FlatList, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 
+// TypeScript için bilet veri yapısını tanımlıyoruz
+interface Bilet {
+    id: number;
+    konu: string;
+    detay: string;
+    durum: string;
+}
+
 export default function SupportScreen() {
     const router = useRouter();
-    const [biletler, setBiletler] = useState([]);
+    const [biletler, setBiletler] = useState<Bilet[]>([]);
     const [yukleniyor, setYukleniyor] = useState(true);
 
     // Çıkış Yapma Fonksiyonu
