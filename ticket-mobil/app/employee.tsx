@@ -12,17 +12,45 @@ export default function EmployeeScreen() {
         router.replace('/');
     };
 
-    // Bileti Gönderme Fonksiyonu
-    const biletGonder = () => {
+    // Gerçek Bileti Gönderme Fonksiyonu
+    const biletGonder = async () => {
+        // 1. Boş alan kontrolü
         if (konu === '' || detay === '') {
             Alert.alert('Eksik Bilgi', 'Lütfen konu ve detay alanlarını doldurun.');
             return;
         }
 
-        // İleride buraya create_ticket.php için bir fetch yazacağız.
-        Alert.alert('Başarılı', 'Biletiniz IT Destek ekibine iletildi!');
-        setKonu('');
-        setDetay('');
+        try {
+            // 2. PHP dosyamıza HTTP POST isteği atıyoruz
+            const response = await fetch('http://192.168.41.34/staj_projesi/create_ticket.php', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                // Formdaki state (durum) verilerimizi JSON string'e çevirip gövdeye (body) ekliyoruz
+                body: JSON.stringify({
+                    konu: konu,
+                    detay: detay
+                })
+            });
+
+            // 3. PHP'den dönen cevabı JSON olarak okuyoruz
+            const data = await response.json();
+
+            // 4. Gelen cevaba göre kullanıcıya mesaj gösteriyoruz
+            if (data.durum === 'basarili') {
+                Alert.alert('Başarılı', data.mesaj);
+                setKonu('');  // Başarılıysa formu temizle
+                setDetay('');
+            } else {
+                Alert.alert('Hata', data.mesaj);
+            }
+
+        } catch (error) {
+            Alert.alert('Bağlantı Hatası', 'Sunucuya ulaşılamadı. IP adresini kontrol et.');
+            console.log(error);
+        }
     };
 
     return (
