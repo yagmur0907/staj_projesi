@@ -9,6 +9,8 @@ interface Bilet {
     konu: string;
     detay: string;
     durum: string;
+    assigned_to: number | null;
+    atanan_kisi_isim: string | null;
 }
 
 export default function EmployeeScreen() {
@@ -198,6 +200,15 @@ export default function EmployeeScreen() {
                                 </Text>
                             </View>
                             <Text style={styles.biletDetay}>{item.detay}</Text>
+
+                            {/* YENİ EKLENEN KISIM: İlgilenen Kişi Bilgisi */}
+                            <View style={styles.aksiyonKutusu}>
+                                {item.assigned_to ? (
+                                    <Text style={styles.atananKisiMetni}>👤 Sizinle İlgilenen: {item.atanan_kisi_isim}</Text>
+                                ) : (
+                                    <Text style={styles.bekliyorMetni}>⏳ Destek ekibi ataması bekleniyor...</Text>
+                                )}
+                            </View>
                         </TouchableOpacity>
                     )}
                     ListEmptyComponent={
@@ -361,5 +372,24 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         color: '#888',
         marginTop: 20,
+    },
+
+    // YENİ EKLENEN STİLLER
+    aksiyonKutusu: {
+        marginTop: 10,
+        borderTopWidth: 1,
+        borderColor: '#f0f0f0',
+        paddingTop: 10,
+    },
+    atananKisiMetni: {
+        fontSize: 13,
+        color: '#27ae60',
+        fontWeight: 'bold',
+        fontStyle: 'italic',
+    },
+    bekliyorMetni: {
+        fontSize: 13,
+        color: '#e67e22',
+        fontStyle: 'italic',
     }
 });

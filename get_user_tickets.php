@@ -9,7 +9,13 @@ $data = json_decode(file_get_contents("php://input"));
 
 if(isset($data->user_id)) {
     try {
-        $sorgu = "SELECT * FROM biletler WHERE user_id = :user_id ORDER BY id DESC";
+        // LEFT JOIN ile çalışanın sadece kendi biletlerini ve atanan kişinin adını çekiyoruz
+        $sorgu = "SELECT b.*, u.isim_soyisim as atanan_kisi_isim 
+                  FROM biletler b 
+                  LEFT JOIN users u ON b.assigned_to = u.id 
+                  WHERE b.user_id = :user_id 
+                  ORDER BY b.id DESC";
+
         $stmt = $db->prepare($sorgu);
         $stmt->bindParam(':user_id', $data->user_id);
         $stmt->execute();

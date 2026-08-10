@@ -6,8 +6,12 @@ header("Content-Type: application/json; charset=UTF-8");
 include_once 'baglanti.php';
 
 try {
-    // Biletleri veritabanından en yeniden eskiye doğru çekiyoruz
-    $sorgu = "SELECT * FROM biletler ORDER BY id DESC";
+    // LEFT JOIN ile biletler ve users tablolarını birleştiriyoruz
+    $sorgu = "SELECT b.*, u.isim_soyisim as atanan_kisi_isim 
+              FROM biletler b 
+              LEFT JOIN users u ON b.assigned_to = u.id 
+              ORDER BY b.id DESC";
+
     $stmt = $db->prepare($sorgu);
     $stmt->execute();
 
