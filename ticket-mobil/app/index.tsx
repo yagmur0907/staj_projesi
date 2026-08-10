@@ -1,11 +1,38 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
+// AsyncStorage paketini projeye dahil ediyoruz
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function App() {
     const [eposta, setEposta] = useState('');
     const [sifre, setSifre] = useState('');
+    const [yukleniyor, setYukleniyor] = useState(true); // Oturum kontrolü için yüklenme durumu
     const router = useRouter();
+
+    // Uygulama ilk açıldığında hafızayı kontrol et
+    useEffect(() => {
+        oturumKontrolUygula();
+    }, []);
+
+    // Hafızada kayıtlı bir oturum var mı diye bakan fonksiyon
+    const oturumKontrolUygula = async () => {
+        try {
+            const kayitliRol = await AsyncStorage.getItem('kullaniciRol');
+
+            if (kayitliRol === 'employee') {
+                router.replace('/employee');
+            } else if (kayitliRol === 'support') {
+                router.replace('/support');
+            } else {
+                // Kayıtlı oturum yoksa yüklenme ekranını kapat ve giriş formunu göster
+                setYukleniyor(false);
+            }
+        } catch (error) {
+            console.log(error);
+            setYukleniyor(false);
+        }
+    };
 
     const girisYap = async () => {
         if (eposta === '' || sifre === '') {
@@ -29,6 +56,9 @@ export default function App() {
             const data = await response.json();
 
             if (data.durum === 'basarili') {
+                // Giriş başarılıysa kullanıcının rolünü telefonun hafızasına (AsyncStorage) kaydet
+                await AsyncStorage.setItem('kullaniciRol', data.kullanici.rol);
+
                 if (data.kullanici.rol === 'employee') {
                     router.replace('/employee');
                 } else if (data.kullanici.rol === 'support') {
@@ -43,6 +73,15 @@ export default function App() {
             console.log(error);
         }
     };
+
+    // Hafıza kontrol edilirken kullanıcıya beyaz ekran yerine dönen bir spinner gösteriyoruz
+    if (yukleniyor) {
+        return (
+            <View style={styles.yukleniyorContainer}>
+                <ActivityIndicator size="large" color="#007bff" />
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -78,6 +117,12 @@ const styles = StyleSheet.create({
         backgroundColor: '#f5f5f5',
         justifyContent: 'center',
         padding: 20,
+    },
+    yukleniyorContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#f5f5f5',
     },
     baslik: {
         fontSize: 28,

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, FlatList, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // TypeScript için bilet veri yapısını tanımlıyoruz
 interface Bilet {
@@ -14,6 +15,10 @@ export default function EmployeeScreen() {
     const [konu, setKonu] = useState('');
     const [detay, setDetay] = useState('');
 
+    // Kategori seçimi için state ve seçenekler listesi
+    const [kategori, setKategori] = useState('Diğer');
+    const kategoriler = ['Donanım', 'Yazılım', 'Ağ/İnternet', 'Diğer'];
+
     // Geçmiş bilet listesi için stateler
     const [biletler, setBiletler] = useState<Bilet[]>([]);
     const [yukleniyor, setYukleniyor] = useState(true);
@@ -21,7 +26,8 @@ export default function EmployeeScreen() {
     const router = useRouter();
 
     // Çıkış Yapma Fonksiyonu
-    const cikisYap = () => {
+    const cikisYap = async () => {
+        await AsyncStorage.removeItem('kullaniciRol');
         router.replace('/');
     };
 
@@ -53,6 +59,8 @@ export default function EmployeeScreen() {
             return;
         }
 
+        const formatliKonu = `[${kategori}] ${konu}`;
+
         try {
             const response = await fetch('http://192.168.41.38/staj_projesi/create_ticket.php', {
                 method: 'POST',
@@ -61,7 +69,7 @@ export default function EmployeeScreen() {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    konu: konu,
+                    konu: formatliKonu,
                     detay: detay
                 })
             });
@@ -72,7 +80,7 @@ export default function EmployeeScreen() {
                 Alert.alert('Başarılı', data.mesaj);
                 setKonu('');
                 setDetay('');
-                // Bilet gönderildikten sonra listeyi anında yenile!
+                setKategori('Diğer');
                 biletleriGetir();
             } else {
                 Alert.alert('Hata', data.mesaj);
@@ -84,38 +92,6 @@ export default function EmployeeScreen() {
         }
     };
 
-    // Form alanını FlatList'in başlığı (Header) olarak render ediyoruz
-    const FormAlaniniOlustur = () => (
-        <View style={styles.formContainer}>
-            <Text style={styles.bilgiYazisi}>
-                Lütfen yaşadığınız sorunu kısaca özetleyin. IT ekibimiz en kısa sürede ilgilenecektir.
-            </Text>
-
-            <TextInput
-                style={styles.input}
-                placeholder="Sorunun Konusu (Örn: İnternet Kesintisi)"
-                value={konu}
-                onChangeText={setKonu}
-            />
-
-            <TextInput
-                style={[styles.input, styles.textArea]}
-                placeholder="Lütfen sorunu detaylıca açıklayın..."
-                value={detay}
-                onChangeText={setDetay}
-                multiline={true}
-                numberOfLines={4}
-            />
-
-            <TouchableOpacity style={styles.gonderButon} onPress={biletGonder}>
-                <Text style={styles.gonderYazi}>Bileti Gönder</Text>
-            </TouchableOpacity>
-
-            <View style={styles.ayiriciCizgi} />
-            <Text style={styles.gecmisBaslik}>Geçmiş Taleplerim</Text>
-        </View>
-    );
-
     return (
         <View style={styles.container}>
             <View style={styles.header}>
@@ -125,14 +101,60 @@ export default function EmployeeScreen() {
                 </TouchableOpacity>
             </View>
 
-            {/* İçerik Yükleniyorsa Spinner Göster, Yüklendiyse Listeyi Göster */}
             {yukleniyor ? (
                 <ActivityIndicator size="large" color="#28a745" style={{ marginTop: 50 }} />
             ) : (
                 <FlatList
                     data={biletler}
                     keyExtractor={(item) => item.id.toString()}
-                    ListHeaderComponent={FormAlaniniOlustur}
+                    // KLAVYE ÇÖZÜMÜ BURADA: Formu doğrudan buraya yazıyoruz
+                    ListHeaderComponent={
+                        <View style={styles.formContainer}>
+                            <Text style={styles.bilgiYazisi}>
+                                Lütfen yaşadığınız sorunu kısaca özetleyin. IT ekibimiz en kısa sürede ilgilenecektir.
+                            </Text>
+
+                            <Text style={styles.label}>Sorun Kategorisi:</Text>
+                            <View style={styles.kategoriContainer}>
+                                {kategoriler.map((kat, index) => (
+                                    <TouchableOpacity
+                                        key={index}
+                                        style={[styles.kategoriButon, kategori === kat && styles.kategoriButonAktif]}
+                                        onPress={() => setKategori(kat)}
+                                    >
+                                        <Text style={[styles.kategoriYazi, kategori === kat && styles.kategoriYaziAktif]}>
+                                            {kat}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            <Text style={styles.label}>Konu:</Text>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Örn: İnternet Kesintisi"
+                                value={konu}
+                                onChangeText={setKonu}
+                            />
+
+                            <Text style={styles.label}>Detay:</Text>
+                            <TextInput
+                                style={[styles.input, styles.textArea]}
+                                placeholder="Lütfen sorunu detaylıca açıklayın..."
+                                value={detay}
+                                onChangeText={setDetay}
+                                multiline={true}
+                                numberOfLines={4}
+                            />
+
+                            <TouchableOpacity style={styles.gonderButon} onPress={biletGonder}>
+                                <Text style={styles.gonderYazi}>Bileti Gönder</Text>
+                            </TouchableOpacity>
+
+                            <View style={styles.ayiriciCizgi} />
+                            <Text style={styles.gecmisBaslik}>Geçmiş Taleplerim</Text>
+                        </View>
+                    }
                     renderItem={({ item }) => (
                         <View style={styles.biletKarti}>
                             <View style={styles.kartUst}>
@@ -152,6 +174,8 @@ export default function EmployeeScreen() {
                     }
                     contentContainerStyle={{ paddingBottom: 20 }}
                     showsVerticalScrollIndicator={false}
+                    // Ekstra bir güvenlik: Liste kaydırılırken klavyeyi otomatik kapat
+                    keyboardShouldPersistTaps="handled"
                 />
             )}
         </View>
@@ -192,7 +216,38 @@ const styles = StyleSheet.create({
     bilgiYazisi: {
         fontSize: 14,
         color: '#666',
-        marginBottom: 20,
+        marginBottom: 15,
+    },
+    label: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: '#444',
+        marginBottom: 8,
+    },
+    kategoriContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginBottom: 15,
+        gap: 8,
+    },
+    kategoriButon: {
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+        backgroundColor: '#e0e0e0',
+        borderRadius: 20,
+        marginRight: 8,
+        marginBottom: 8,
+    },
+    kategoriButonAktif: {
+        backgroundColor: '#28a745',
+    },
+    kategoriYazi: {
+        color: '#555',
+        fontWeight: 'bold',
+        fontSize: 13,
+    },
+    kategoriYaziAktif: {
+        color: '#fff',
     },
     input: {
         backgroundColor: '#fff',

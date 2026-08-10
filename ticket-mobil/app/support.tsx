@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, FlatList, ActivityIndicator, TouchableOpacity, Alert, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // TypeScript için bilet veri yapısını tanımlıyoruz
 interface Bilet {
@@ -18,8 +19,12 @@ export default function SupportScreen() {
     // Aşağı çekerek yenileme işlemi için state (durum) ekliyoruz
     const [yenileniyor, setYenileniyor] = useState(false);
 
+    // YENİ: Hangi filtrenin seçili olduğunu tutan state
+    const [seciliFiltre, setSeciliFiltre] = useState('Tümü');
+
     // Çıkış Yapma Fonksiyonu
-    const cikisYap = () => {
+    const cikisYap = async () => {
+        await AsyncStorage.removeItem('kullaniciRol');
         router.replace('/');
     };
 
@@ -80,6 +85,12 @@ export default function SupportScreen() {
         biletleriGetir();
     }, []);
 
+    // YENİ: Listeyi render etmeden önce biletleri seçili filtreye göre süzüyoruz
+    const filtrelenmisBiletler = biletler.filter(bilet => {
+        if (seciliFiltre === 'Tümü') return true;
+        return bilet.durum === seciliFiltre;
+    });
+
     return (
         <View style={styles.container}>
             {/* Üst Kısım: Başlık ve Çıkış Butonu */}
@@ -90,6 +101,30 @@ export default function SupportScreen() {
                 </TouchableOpacity>
             </View>
 
+            {/* YENİ: Filtreleme Butonları (Sekmeler) */}
+            <View style={styles.filtreContainer}>
+                <TouchableOpacity
+                    style={[styles.filtreButon, seciliFiltre === 'Tümü' && styles.filtreButonAktif]}
+                    onPress={() => setSeciliFiltre('Tümü')}
+                >
+                    <Text style={[styles.filtreYazi, seciliFiltre === 'Tümü' && styles.filtreYaziAktif]}>Tümü</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={[styles.filtreButon, seciliFiltre === 'Açık' && styles.filtreButonAktif]}
+                    onPress={() => setSeciliFiltre('Açık')}
+                >
+                    <Text style={[styles.filtreYazi, seciliFiltre === 'Açık' && styles.filtreYaziAktif]}>Açık</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={[styles.filtreButon, seciliFiltre === 'Çözüldü' && styles.filtreButonAktif]}
+                    onPress={() => setSeciliFiltre('Çözüldü')}
+                >
+                    <Text style={[styles.filtreYazi, seciliFiltre === 'Çözüldü' && styles.filtreYaziAktif]}>Çözüldü</Text>
+                </TouchableOpacity>
+            </View>
+
             {/* Orta Kısım: Bilet Listesi veya Yükleniyor Göstergesi */}
             {yukleniyor ? (
                 <View style={styles.icerik}>
@@ -97,7 +132,8 @@ export default function SupportScreen() {
                 </View>
             ) : (
                 <FlatList
-                    data={biletler}
+                    // Artık ana veriyi değil, filtrelenmiş veriyi kullanıyoruz
+                    data={filtrelenmisBiletler}
                     keyExtractor={(item) => item.id.toString()}
                     // Pull-to-Refresh özelliğini FlatList'e entegre ediyoruz
                     refreshControl={
@@ -135,7 +171,7 @@ export default function SupportScreen() {
                     )}
                     ListEmptyComponent={
                         <View style={styles.icerik}>
-                            <Text style={styles.altYazi}>Henüz oluşturulmuş destek talebi yok.</Text>
+                            <Text style={styles.altYazi}>Bu filtreye uygun destek talebi bulunmuyor.</Text>
                         </View>
                     }
                     contentContainerStyle={{ paddingBottom: 20 }}
@@ -156,7 +192,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 20,
+        marginBottom: 15, // Filtrelerle arası çok açık olmasın diye 15'e çektim
     },
     baslik: {
         fontSize: 24,
@@ -173,6 +209,34 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontWeight: 'bold',
     },
+
+    // YENİ: Filtreleme Stilleri
+    filtreContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 15,
+        backgroundColor: '#fff',
+        padding: 5,
+        borderRadius: 8,
+    },
+    filtreButon: {
+        flex: 1,
+        paddingVertical: 10,
+        alignItems: 'center',
+        borderRadius: 6,
+    },
+    filtreButonAktif: {
+        backgroundColor: '#0277bd',
+    },
+    filtreYazi: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: '#666',
+    },
+    filtreYaziAktif: {
+        color: '#fff',
+    },
+
     icerik: {
         flex: 1,
         justifyContent: 'center',
