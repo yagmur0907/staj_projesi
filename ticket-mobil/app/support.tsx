@@ -19,12 +19,13 @@ export default function SupportScreen() {
     // Aşağı çekerek yenileme işlemi için state (durum) ekliyoruz
     const [yenileniyor, setYenileniyor] = useState(false);
 
-    // YENİ: Hangi filtrenin seçili olduğunu tutan state
+    // Hangi filtrenin seçili olduğunu tutan state
     const [seciliFiltre, setSeciliFiltre] = useState('Tümü');
 
     // Çıkış Yapma Fonksiyonu
     const cikisYap = async () => {
         await AsyncStorage.removeItem('kullaniciRol');
+        await AsyncStorage.removeItem('kullaniciId');
         router.replace('/');
     };
 
@@ -49,9 +50,9 @@ export default function SupportScreen() {
 
     // Sayfayı Aşağı Çekince Tetiklenecek Fonksiyon
     const sayfayiYenile = async () => {
-        setYenileniyor(true); // Yükleniyor animasyonunu başlat
-        await biletleriGetir(); // Verileri sunucudan tekrar çek
-        setYenileniyor(false); // Animasyonu durdur
+        setYenileniyor(true);
+        await biletleriGetir();
+        setYenileniyor(false);
     };
 
     // Bileti "Çözüldü" Olarak Güncelleyen Fonksiyon
@@ -69,7 +70,6 @@ export default function SupportScreen() {
 
             if (data.durum === 'basarili') {
                 Alert.alert('Başarılı', 'Bilet çözüldü olarak işaretlendi!');
-                // Listeyi arka planda yenileyerek güncel durumu ekrana yansıtıyoruz
                 biletleriGetir();
             } else {
                 Alert.alert('Hata', data.mesaj);
@@ -85,7 +85,7 @@ export default function SupportScreen() {
         biletleriGetir();
     }, []);
 
-    // YENİ: Listeyi render etmeden önce biletleri seçili filtreye göre süzüyoruz
+    // Listeyi render etmeden önce biletleri seçili filtreye göre süzüyoruz
     const filtrelenmisBiletler = biletler.filter(bilet => {
         if (seciliFiltre === 'Tümü') return true;
         return bilet.durum === seciliFiltre;
@@ -101,7 +101,7 @@ export default function SupportScreen() {
                 </TouchableOpacity>
             </View>
 
-            {/* YENİ: Filtreleme Butonları (Sekmeler) */}
+            {/* Filtreleme Butonları (Sekmeler) */}
             <View style={styles.filtreContainer}>
                 <TouchableOpacity
                     style={[styles.filtreButon, seciliFiltre === 'Tümü' && styles.filtreButonAktif]}
@@ -132,23 +132,28 @@ export default function SupportScreen() {
                 </View>
             ) : (
                 <FlatList
-                    // Artık ana veriyi değil, filtrelenmiş veriyi kullanıyoruz
                     data={filtrelenmisBiletler}
                     keyExtractor={(item) => item.id.toString()}
-                    // Pull-to-Refresh özelliğini FlatList'e entegre ediyoruz
                     refreshControl={
                         <RefreshControl
                             refreshing={yenileniyor}
                             onRefresh={sayfayiYenile}
-                            colors={['#0277bd']} // Android yüklenme çemberi rengi
-                            tintColor="#0277bd" // iOS yüklenme çemberi rengi
+                            colors={['#0277bd']}
+                            tintColor="#0277bd"
                         />
                     }
                     renderItem={({ item }) => (
-                        <View style={styles.biletKarti}>
+                        // YENİ: View yerine TouchableOpacity kullanılarak bilet detaya yönlendirme eklendi
+                        <TouchableOpacity
+                            style={styles.biletKarti}
+                            onPress={() => router.push({
+                                pathname: '/ticket-detail',
+                                params: { id: item.id, konu: item.konu, detay: item.detay, durum: item.durum }
+                            })}
+                            activeOpacity={0.8}
+                        >
                             <View style={styles.kartUst}>
                                 <Text style={styles.konu}>{item.konu}</Text>
-                                {/* Duruma göre dinamik renk stili uyguluyoruz */}
                                 <Text style={[
                                     styles.durum,
                                     item.durum === 'Çözüldü' ? styles.durumCozuldu : styles.durumAcik
@@ -167,7 +172,7 @@ export default function SupportScreen() {
                                     <Text style={styles.aksiyonButonYazi}>✓ Çözüldü Olarak İşaretle</Text>
                                 </TouchableOpacity>
                             )}
-                        </View>
+                        </TouchableOpacity>
                     )}
                     ListEmptyComponent={
                         <View style={styles.icerik}>
@@ -192,7 +197,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 15, // Filtrelerle arası çok açık olmasın diye 15'e çektim
+        marginBottom: 15,
     },
     baslik: {
         fontSize: 24,
@@ -209,8 +214,6 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontWeight: 'bold',
     },
-
-    // YENİ: Filtreleme Stilleri
     filtreContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -236,7 +239,6 @@ const styles = StyleSheet.create({
     filtreYaziAktif: {
         color: '#fff',
     },
-
     icerik: {
         flex: 1,
         justifyContent: 'center',

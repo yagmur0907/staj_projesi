@@ -22,19 +22,48 @@ export default function EmployeeScreen() {
     // Geçmiş bilet listesi için stateler
     const [biletler, setBiletler] = useState<Bilet[]>([]);
     const [yukleniyor, setYukleniyor] = useState(true);
+    const [userId, setUserId] = useState<string | null>(null);
 
     const router = useRouter();
 
     // Çıkış Yapma Fonksiyonu
     const cikisYap = async () => {
         await AsyncStorage.removeItem('kullaniciRol');
+        await AsyncStorage.removeItem('kullaniciId'); // ID'yi de hafızadan siliyoruz
         router.replace('/');
     };
 
-    // Biletleri veritabanından çekme fonksiyonu
-    const biletleriGetir = async () => {
+    // Sayfa açıldığında AsyncStorage'dan ID'yi al ve o kullanıcının biletlerini getir
+    useEffect(() => {
+        kullaniciyiYukleVeBiletleriGetir();
+    }, []);
+
+    const kullaniciyiYukleVeBiletleriGetir = async () => {
         try {
-            const response = await fetch('http://192.168.41.38/staj_projesi/get_tickets.php');
+            const id = await AsyncStorage.getItem('kullaniciId');
+            if (id) {
+                setUserId(id);
+                await biletleriGetir(id);
+            } else {
+                setYukleniyor(false);
+            }
+        } catch (error) {
+            console.log(error);
+            setYukleniyor(false);
+        }
+    };
+
+    // Sadece bu kullanıcıya ait biletleri veritabanından çekme fonksiyonu
+    const biletleriGetir = async (id: string) => {
+        try {
+            const response = await fetch('http://192.168.41.38/staj_projesi/get_user_tickets.php', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ user_id: id })
+            });
             const data = await response.json();
 
             if (data.durum === 'basarili') {
@@ -47,12 +76,7 @@ export default function EmployeeScreen() {
         }
     };
 
-    // Sayfa açıldığında biletleri yükle
-    useEffect(() => {
-        biletleriGetir();
-    }, []);
-
-    // Gerçek Bileti Gönderme Fonksiyonu
+    // Gerçek Bileti Gönderme Fonksiyonu (user_id ile birlikte)
     const biletGonder = async () => {
         if (konu === '' || detay === '') {
             Alert.alert('Eksik Bilgi', 'Lütfen konu ve detay alanlarını doldurun.');
@@ -70,7 +94,8 @@ export default function EmployeeScreen() {
                 },
                 body: JSON.stringify({
                     konu: formatliKonu,
-                    detay: detay
+                    detay: detay,
+                    user_id: userId // Hangi kullanıcıya ait olduğunu sunucuya gönderiyoruz
                 })
             });
 
@@ -81,7 +106,7 @@ export default function EmployeeScreen() {
                 setKonu('');
                 setDetay('');
                 setKategori('Diğer');
-                biletleriGetir();
+                if (userId) biletleriGetir(userId); // Listeyi anında güncelle
             } else {
                 Alert.alert('Hata', data.mesaj);
             }
@@ -156,7 +181,13 @@ export default function EmployeeScreen() {
                         </View>
                     }
                     renderItem={({ item }) => (
-                        <View style={styles.biletKarti}>
+                        <TouchableOpacity
+                            style={styles.biletKarti}
+                            onPress={() => router.push({
+                                pathname: '/ticket-detail',
+                                params: { id: item.id, konu: item.konu, detay: item.detay, durum: item.durum }
+                            })}
+                        >
                             <View style={styles.kartUst}>
                                 <Text style={styles.biletKonu}>{item.konu}</Text>
                                 <Text style={[
@@ -167,7 +198,7 @@ export default function EmployeeScreen() {
                                 </Text>
                             </View>
                             <Text style={styles.biletDetay}>{item.detay}</Text>
-                        </View>
+                        </TouchableOpacity>
                     )}
                     ListEmptyComponent={
                         <Text style={styles.altYazi}>Henüz bir destek talebi oluşturmadınız.</Text>

@@ -56,8 +56,9 @@ export default function App() {
             const data = await response.json();
 
             if (data.durum === 'basarili') {
-                // Giriş başarılıysa kullanıcının rolünü telefonun hafızasına (AsyncStorage) kaydet
+                // Giriş başarılıysa kullanıcının rolünü ve ID'sini telefonun hafızasına (AsyncStorage) kaydet
                 await AsyncStorage.setItem('kullaniciRol', data.kullanici.rol);
+                await AsyncStorage.setItem('kullaniciId', data.kullanici.id.toString());
 
                 if (data.kullanici.rol === 'employee') {
                     router.replace('/employee');
@@ -107,6 +108,10 @@ export default function App() {
             <TouchableOpacity style={styles.buton} onPress={girisYap}>
                 <Text style={styles.butonYazi}>Giriş Yap</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity style={styles.kayitButon} onPress={() => router.push('/register')}>
+                <Text style={styles.kayitYazi}>Hesabınız yok mu? Kayıt Olun</Text>
+            </TouchableOpacity>
         </View>
     );
 }
@@ -144,10 +149,20 @@ const styles = StyleSheet.create({
         padding: 15,
         borderRadius: 8,
         alignItems: 'center',
+        marginBottom: 15,
     },
     butonYazi: {
         color: '#fff',
         fontSize: 18,
         fontWeight: 'bold',
+    },
+    kayitButon: {
+        alignItems: 'center',
+        marginTop: 5,
+    },
+    kayitYazi: {
+        color: '#007bff',
+        fontWeight: 'bold',
+        fontSize: 15,
     },
 });
