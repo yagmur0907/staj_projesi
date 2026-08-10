@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, FlatList, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, Text, View, FlatList, ActivityIndicator, TouchableOpacity, Alert, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 
 // TypeScript için bilet veri yapısını tanımlıyoruz
@@ -15,6 +15,9 @@ export default function SupportScreen() {
     const [biletler, setBiletler] = useState<Bilet[]>([]);
     const [yukleniyor, setYukleniyor] = useState(true);
 
+    // Aşağı çekerek yenileme işlemi için state (durum) ekliyoruz
+    const [yenileniyor, setYenileniyor] = useState(false);
+
     // Çıkış Yapma Fonksiyonu
     const cikisYap = () => {
         router.replace('/');
@@ -23,7 +26,7 @@ export default function SupportScreen() {
     // Biletleri Sunucudan Çekme Fonksiyonu
     const biletleriGetir = async () => {
         try {
-            const response = await fetch('http://192.168.41.34/staj_projesi/get_tickets.php');
+            const response = await fetch('http://192.168.41.38/staj_projesi/get_tickets.php');
             const data = await response.json();
 
             if (data.durum === 'basarili') {
@@ -36,6 +39,39 @@ export default function SupportScreen() {
             Alert.alert('Bağlantı Hatası', 'Sunucudan biletler alınamadı.');
         } finally {
             setYukleniyor(false);
+        }
+    };
+
+    // Sayfayı Aşağı Çekince Tetiklenecek Fonksiyon
+    const sayfayiYenile = async () => {
+        setYenileniyor(true); // Yükleniyor animasyonunu başlat
+        await biletleriGetir(); // Verileri sunucudan tekrar çek
+        setYenileniyor(false); // Animasyonu durdur
+    };
+
+    // Bileti "Çözüldü" Olarak Güncelleyen Fonksiyon
+    const biletCozulduIsaretle = async (id: number) => {
+        try {
+            const response = await fetch('http://192.168.41.38/staj_projesi/update_ticket.php', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ id: id })
+            });
+            const data = await response.json();
+
+            if (data.durum === 'basarili') {
+                Alert.alert('Başarılı', 'Bilet çözüldü olarak işaretlendi!');
+                // Listeyi arka planda yenileyerek güncel durumu ekrana yansıtıyoruz
+                biletleriGetir();
+            } else {
+                Alert.alert('Hata', data.mesaj);
+            }
+        } catch (error) {
+            console.log(error);
+            Alert.alert('Bağlantı Hatası', 'İşlem tamamlanamadı.');
         }
     };
 
@@ -63,13 +99,38 @@ export default function SupportScreen() {
                 <FlatList
                     data={biletler}
                     keyExtractor={(item) => item.id.toString()}
+                    // Pull-to-Refresh özelliğini FlatList'e entegre ediyoruz
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={yenileniyor}
+                            onRefresh={sayfayiYenile}
+                            colors={['#0277bd']} // Android yüklenme çemberi rengi
+                            tintColor="#0277bd" // iOS yüklenme çemberi rengi
+                        />
+                    }
                     renderItem={({ item }) => (
                         <View style={styles.biletKarti}>
                             <View style={styles.kartUst}>
                                 <Text style={styles.konu}>{item.konu}</Text>
-                                <Text style={styles.durum}>{item.durum}</Text>
+                                {/* Duruma göre dinamik renk stili uyguluyoruz */}
+                                <Text style={[
+                                    styles.durum,
+                                    item.durum === 'Çözüldü' ? styles.durumCozuldu : styles.durumAcik
+                                ]}>
+                                    {item.durum}
+                                </Text>
                             </View>
                             <Text style={styles.detay}>{item.detay}</Text>
+
+                            {/* Eğer bilet "Açık" ise Çözüldü Butonunu Göster */}
+                            {item.durum !== 'Çözüldü' && (
+                                <TouchableOpacity
+                                    style={styles.aksiyonButon}
+                                    onPress={() => biletCozulduIsaretle(item.id)}
+                                >
+                                    <Text style={styles.aksiyonButonYazi}>✓ Çözüldü Olarak İşaretle</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
                     )}
                     ListEmptyComponent={
@@ -87,9 +148,9 @@ export default function SupportScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#e3f2fd', // Destek paneli için mavi arka plan rengi
+        backgroundColor: '#e3f2fd',
         padding: 20,
-        paddingTop: 50, // Telefonun üst bildirim çubuğundan biraz aşağı indirdik
+        paddingTop: 50,
     },
     header: {
         flexDirection: 'row',
@@ -103,7 +164,7 @@ const styles = StyleSheet.create({
         color: '#0277bd'
     },
     cikisButon: {
-        backgroundColor: '#dc3545', // Kırmızı çıkış butonu
+        backgroundColor: '#dc3545',
         paddingVertical: 8,
         paddingHorizontal: 15,
         borderRadius: 5,
@@ -138,6 +199,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         marginBottom: 8,
+        alignItems: 'center',
     },
     konu: {
         fontSize: 16,
@@ -148,15 +210,34 @@ const styles = StyleSheet.create({
     durum: {
         fontSize: 12,
         fontWeight: 'bold',
-        color: '#e67e22',
-        backgroundColor: '#fdebd0',
         paddingHorizontal: 8,
-        paddingVertical: 2,
+        paddingVertical: 4,
         borderRadius: 4,
         overflow: 'hidden',
+    },
+    durumAcik: {
+        color: '#e67e22',
+        backgroundColor: '#fdebd0',
+    },
+    durumCozuldu: {
+        color: '#27ae60',
+        backgroundColor: '#e9f7ef',
     },
     detay: {
         fontSize: 14,
         color: '#555',
+        marginBottom: 10,
     },
+    aksiyonButon: {
+        backgroundColor: '#4caf50',
+        paddingVertical: 10,
+        borderRadius: 5,
+        alignItems: 'center',
+        marginTop: 5,
+    },
+    aksiyonButonYazi: {
+        color: '#fff',
+        fontWeight: 'bold',
+        fontSize: 14,
+    }
 });

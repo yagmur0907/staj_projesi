@@ -14,7 +14,7 @@ export default function App() {
         }
 
         try {
-            const response = await fetch('http://192.168.41.34/staj_projesi/login.php', {
+            const response = await fetch('http://192.168.41.38/staj_projesi/login.php', {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',

@@ -1,48 +1,79 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, FlatList, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
+
+// TypeScript için bilet veri yapısını tanımlıyoruz
+interface Bilet {
+    id: number;
+    konu: string;
+    detay: string;
+    durum: string;
+}
 
 export default function EmployeeScreen() {
     const [konu, setKonu] = useState('');
     const [detay, setDetay] = useState('');
+
+    // Geçmiş bilet listesi için stateler
+    const [biletler, setBiletler] = useState<Bilet[]>([]);
+    const [yukleniyor, setYukleniyor] = useState(true);
+
     const router = useRouter();
 
-    // Çıkış Yapma Fonksiyonu (Doğrudan ana sayfaya yönlendirildi)
+    // Çıkış Yapma Fonksiyonu
     const cikisYap = () => {
         router.replace('/');
     };
 
+    // Biletleri veritabanından çekme fonksiyonu
+    const biletleriGetir = async () => {
+        try {
+            const response = await fetch('http://192.168.41.38/staj_projesi/get_tickets.php');
+            const data = await response.json();
+
+            if (data.durum === 'basarili') {
+                setBiletler(data.biletler);
+            }
+        } catch (error) {
+            console.log(error);
+        } finally {
+            setYukleniyor(false);
+        }
+    };
+
+    // Sayfa açıldığında biletleri yükle
+    useEffect(() => {
+        biletleriGetir();
+    }, []);
+
     // Gerçek Bileti Gönderme Fonksiyonu
     const biletGonder = async () => {
-        // 1. Boş alan kontrolü
         if (konu === '' || detay === '') {
             Alert.alert('Eksik Bilgi', 'Lütfen konu ve detay alanlarını doldurun.');
             return;
         }
 
         try {
-            // 2. PHP dosyamıza HTTP POST isteği atıyoruz
-            const response = await fetch('http://192.168.41.34/staj_projesi/create_ticket.php', {
+            const response = await fetch('http://192.168.41.38/staj_projesi/create_ticket.php', {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
                     'Content-Type': 'application/json',
                 },
-                // Formdaki state (durum) verilerimizi JSON string'e çevirip gövdeye (body) ekliyoruz
                 body: JSON.stringify({
                     konu: konu,
                     detay: detay
                 })
             });
 
-            // 3. PHP'den dönen cevabı JSON olarak okuyoruz
             const data = await response.json();
 
-            // 4. Gelen cevaba göre kullanıcıya mesaj gösteriyoruz
             if (data.durum === 'basarili') {
                 Alert.alert('Başarılı', data.mesaj);
-                setKonu('');  // Başarılıysa formu temizle
+                setKonu('');
                 setDetay('');
+                // Bilet gönderildikten sonra listeyi anında yenile!
+                biletleriGetir();
             } else {
                 Alert.alert('Hata', data.mesaj);
             }
@@ -53,15 +84,9 @@ export default function EmployeeScreen() {
         }
     };
 
-    return (
-        <View style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.baslik}>Yeni Destek Bileti</Text>
-                <TouchableOpacity onPress={cikisYap} style={styles.cikisButon}>
-                    <Text style={styles.cikisYazi}>Çıkış</Text>
-                </TouchableOpacity>
-            </View>
-
+    // Form alanını FlatList'in başlığı (Header) olarak render ediyoruz
+    const FormAlaniniOlustur = () => (
+        <View style={styles.formContainer}>
             <Text style={styles.bilgiYazisi}>
                 Lütfen yaşadığınız sorunu kısaca özetleyin. IT ekibimiz en kısa sürede ilgilenecektir.
             </Text>
@@ -85,6 +110,50 @@ export default function EmployeeScreen() {
             <TouchableOpacity style={styles.gonderButon} onPress={biletGonder}>
                 <Text style={styles.gonderYazi}>Bileti Gönder</Text>
             </TouchableOpacity>
+
+            <View style={styles.ayiriciCizgi} />
+            <Text style={styles.gecmisBaslik}>Geçmiş Taleplerim</Text>
+        </View>
+    );
+
+    return (
+        <View style={styles.container}>
+            <View style={styles.header}>
+                <Text style={styles.baslik}>Yeni Destek Bileti</Text>
+                <TouchableOpacity onPress={cikisYap} style={styles.cikisButon}>
+                    <Text style={styles.cikisYazi}>Çıkış</Text>
+                </TouchableOpacity>
+            </View>
+
+            {/* İçerik Yükleniyorsa Spinner Göster, Yüklendiyse Listeyi Göster */}
+            {yukleniyor ? (
+                <ActivityIndicator size="large" color="#28a745" style={{ marginTop: 50 }} />
+            ) : (
+                <FlatList
+                    data={biletler}
+                    keyExtractor={(item) => item.id.toString()}
+                    ListHeaderComponent={FormAlaniniOlustur}
+                    renderItem={({ item }) => (
+                        <View style={styles.biletKarti}>
+                            <View style={styles.kartUst}>
+                                <Text style={styles.biletKonu}>{item.konu}</Text>
+                                <Text style={[
+                                    styles.durum,
+                                    item.durum === 'Çözüldü' ? styles.durumCozuldu : styles.durumAcik
+                                ]}>
+                                    {item.durum}
+                                </Text>
+                            </View>
+                            <Text style={styles.biletDetay}>{item.detay}</Text>
+                        </View>
+                    )}
+                    ListEmptyComponent={
+                        <Text style={styles.altYazi}>Henüz bir destek talebi oluşturmadınız.</Text>
+                    }
+                    contentContainerStyle={{ paddingBottom: 20 }}
+                    showsVerticalScrollIndicator={false}
+                />
+            )}
         </View>
     );
 }
@@ -100,7 +169,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 20,
+        marginBottom: 10,
     },
     baslik: {
         fontSize: 24,
@@ -116,6 +185,9 @@ const styles = StyleSheet.create({
     cikisYazi: {
         color: '#fff',
         fontWeight: 'bold',
+    },
+    formContainer: {
+        marginBottom: 10,
     },
     bilgiYazisi: {
         fontSize: 14,
@@ -145,4 +217,63 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
     },
+    ayiriciCizgi: {
+        height: 1,
+        backgroundColor: '#ddd',
+        marginVertical: 20,
+    },
+    gecmisBaslik: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 10,
+    },
+    biletKarti: {
+        backgroundColor: '#fff',
+        padding: 15,
+        borderRadius: 8,
+        marginBottom: 12,
+        elevation: 1,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 1,
+    },
+    kartUst: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    biletKonu: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#2c3e50',
+        flex: 1,
+    },
+    durum: {
+        fontSize: 12,
+        fontWeight: 'bold',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 4,
+        overflow: 'hidden',
+    },
+    durumAcik: {
+        color: '#e67e22',
+        backgroundColor: '#fdebd0',
+    },
+    durumCozuldu: {
+        color: '#27ae60',
+        backgroundColor: '#e9f7ef',
+    },
+    biletDetay: {
+        fontSize: 14,
+        color: '#666',
+    },
+    altYazi: {
+        textAlign: 'center',
+        color: '#888',
+        marginTop: 20,
+    }
 });
