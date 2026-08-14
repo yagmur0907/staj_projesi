@@ -9,8 +9,11 @@ $data = json_decode(file_get_contents("php://input"));
 
 if(isset($data->user_id)) {
     try {
-        // LEFT JOIN ile çalışanın sadece kendi biletlerini ve atanan kişinin adını çekiyoruz
-        $sorgu = "SELECT b.*, u.isim_soyisim as atanan_kisi_isim 
+        // YENİ: LEFT JOIN ile bilgileri çekerken, okunmamış mesaj sayısını da alt sorguyla ekliyoruz
+        $sorgu = "SELECT 
+                    b.*, 
+                    u.isim_soyisim as atanan_kisi_isim,
+                    (SELECT COUNT(*) FROM ticket_messages tm WHERE tm.ticket_id = b.id AND tm.okundu_mu = 0) as okunmamis_mesaj_sayisi
                   FROM biletler b 
                   LEFT JOIN users u ON b.assigned_to = u.id 
                   WHERE b.user_id = :user_id 

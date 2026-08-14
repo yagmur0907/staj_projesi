@@ -6,8 +6,12 @@ header("Content-Type: application/json; charset=UTF-8");
 include_once 'baglanti.php';
 
 try {
-    // LEFT JOIN ile biletler ve users tablolarını birleştiriyoruz
-    $sorgu = "SELECT b.*, u.isim_soyisim as atanan_kisi_isim 
+    // LEFT JOIN ile biletleri ve personeli birleştiriyoruz
+    // YENİ: Alt sorgu (Subquery) ile okunmamış mesaj sayısını çekiyoruz
+    $sorgu = "SELECT 
+                b.*, 
+                u.isim_soyisim as atanan_kisi_isim,
+                (SELECT COUNT(*) FROM ticket_messages tm WHERE tm.ticket_id = b.id AND tm.okundu_mu = 0) as okunmamis_mesaj_sayisi
               FROM biletler b 
               LEFT JOIN users u ON b.assigned_to = u.id 
               ORDER BY b.id DESC";

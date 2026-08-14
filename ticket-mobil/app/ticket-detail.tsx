@@ -12,11 +12,25 @@ interface Mesaj {
     user_id: number;
     isim_soyisim: string;
     role: string;
+    profile_image: string | null; // YENİ: Sunucudan gelen profil resmi yolu
 }
 
+// İsmi alıp her zaman aynı renk kodunu döndüren yardımcı fonksiyon
+const stringToColor = (str: string) => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    let color = '#';
+    for (let i = 0; i < 3; i++) {
+        const value = (hash >> (i * 8)) & 0xFF;
+        color += ('00' + value.toString(16)).substr(-2);
+    }
+    return color;
+};
+
 export default function TicketDetailScreen() {
-    const { id, konu, detay, durum } = useLocalSearchParams();
+    const { id, konu, detay, durum, isDarkMode } = useLocalSearchParams();
     const router = useRouter();
+    const karanlikMod = isDarkMode === '1';
 
     const [mesajlar, setMesajlar] = useState<Mesaj[]>([]);
     const [yeniMesaj, setYeniMesaj] = useState('');
@@ -24,13 +38,27 @@ export default function TicketDetailScreen() {
     const [yukleniyor, setYukleniyor] = useState(true);
 
     const [seciliResim, setSeciliResim] = useState<string | null>(null);
-
-    // YENİ: Tam ekranda gösterilecek resmin yolunu tutan state
     const [tamEkranResim, setTamEkranResim] = useState<string | null>(null);
 
     useEffect(() => {
         kullaniciIdAlVeMesajlariGetir();
+        mesajlariOkunduIsaretle();
     }, []);
+
+    const mesajlariOkunduIsaretle = async () => {
+        try {
+            await fetch('http://192.168.41.16/staj_projesi/mark_messages_read.php', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ ticket_id: id })
+            });
+        } catch (error) {
+            console.log("Okundu işaretleme hatası:", error);
+        }
+    };
 
     const kullaniciIdAlVeMesajlariGetir = async () => {
         try {
@@ -46,7 +74,7 @@ export default function TicketDetailScreen() {
 
     const mesajlariCek = async () => {
         try {
-            const response = await fetch('http://192.168.41.38/staj_projesi/get_messages.php', {
+            const response = await fetch('http://192.168.41.16/staj_projesi/get_messages.php', {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
@@ -100,7 +128,7 @@ export default function TicketDetailScreen() {
         }
 
         try {
-            const response = await fetch('http://192.168.41.38/staj_projesi/send_message.php', {
+            const response = await fetch('http://192.168.41.16/staj_projesi/send_message.php', {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
@@ -126,47 +154,83 @@ export default function TicketDetailScreen() {
 
     const renderMesaj = ({ item }: { item: Mesaj }) => {
         const benimMesajim = item.user_id.toString() === aktifKullaniciId;
-        const resimTamYol = item.image_url ? `http://192.168.41.38/staj_projesi/${item.image_url}` : null;
+        const resimTamYol = item.image_url ? `http://192.168.41.16/staj_projesi/${item.image_url}` : null;
+
+        // YENİ: Veritabanından gelen kullanıcı profil resminin tam yolu
+        const sunucuProfilResmi = item.profile_image ? `http://192.168.41.16/staj_projesi/${item.profile_image}` : null;
+
+        const ilkHarf = item.isim_soyisim ? item.isim_soyisim.charAt(0).toUpperCase() : '?';
+        const avatarRengi = stringToColor(item.isim_soyisim || 'Bilinmeyen');
 
         return (
-            <View style={[styles.mesajSatiri, benimMesajim ? styles.mesajSag : styles.mesajSol]}>
+            <View style={[styles.mesajKapsayici, benimMesajim ? styles.satirSag : styles.satirSol]}>
+
+                {/* Karşı tarafın avatarı veya sunucudan gelen profil fotoğrafı (Sol tarafta) */}
                 {!benimMesajim && (
-                    <Text style={styles.gonderenIsim}>
-                        {item.isim_soyisim} ({item.role === 'support' ? 'IT Destek' : 'Çalışan'})
-                    </Text>
+                    <View style={[styles.kucukAvatar, !sunucuProfilResmi && { backgroundColor: avatarRengi }]}>
+                        {sunucuProfilResmi ? (
+                            <Image source={{ uri: sunucuProfilResmi }} style={styles.kucukAvatarResim} />
+                        ) : (
+                            <Text style={styles.avatarHarf}>{ilkHarf}</Text>
+                        )}
+                    </View>
                 )}
-                <View style={[styles.baloncuk, benimMesajim ? styles.baloncukBen : styles.baloncukKarsi]}>
 
-                    {resimTamYol && (
-                        // YENİ: Resme tıklanabilirlik özelliği (TouchableOpacity) ekledik
-                        <TouchableOpacity onPress={() => setTamEkranResim(resimTamYol)}>
-                            <Image
-                                source={{ uri: resimTamYol }}
-                                style={styles.mesajResmi}
-                                resizeMode="cover"
-                            />
-                        </TouchableOpacity>
+                <View style={styles.mesajIcerikAlani}>
+                    {!benimMesajim && (
+                        <Text style={[styles.gonderenIsim, karanlikMod && styles.gonderenIsimDark]}>
+                            {item.isim_soyisim} ({item.role === 'support' ? 'IT Destek' : 'Çalışan'})
+                        </Text>
                     )}
+                    <View style={[
+                        styles.baloncuk,
+                        benimMesajim ? styles.baloncukBen : styles.baloncukKarsi,
+                        karanlikMod && (benimMesajim ? styles.baloncukBenDark : styles.baloncukKarsiDark)
+                    ]}>
 
-                    {item.mesaj.trim() !== '' && (
-                        <Text style={[styles.mesajMetni, benimMesajim ? styles.metinBen : styles.metinKarsi]}>{item.mesaj}</Text>
-                    )}
+                        {resimTamYol && (
+                            <TouchableOpacity onPress={() => setTamEkranResim(resimTamYol)}>
+                                <Image
+                                    source={{ uri: resimTamYol }}
+                                    style={styles.mesajResmi}
+                                    resizeMode="cover"
+                                />
+                            </TouchableOpacity>
+                        )}
 
-                    <Text style={styles.tarihMetni}>{item.gonderim_tarihi.substring(11, 16)}</Text>
+                        {item.mesaj.trim() !== '' && (
+                            <Text style={[
+                                styles.mesajMetni,
+                                benimMesajim ? styles.metinBen : styles.metinKarsi,
+                                karanlikMod && styles.metinDark
+                            ]}>{item.mesaj}</Text>
+                        )}
+
+                        <Text style={[styles.tarihMetni, karanlikMod && styles.tarihMetniDark]}>{item.gonderim_tarihi.substring(11, 16)}</Text>
+                    </View>
                 </View>
+
+                {/* Kendi profil fotoğrafımız veya sunucudan gelen resmimiz (Sağ tarafta) */}
+                {benimMesajim && (
+                    <View style={[styles.kucukAvatarBen, !sunucuProfilResmi && { backgroundColor: avatarRengi }]}>
+                        {sunucuProfilResmi ? (
+                            <Image source={{ uri: sunucuProfilResmi }} style={styles.kucukAvatarResim} />
+                        ) : (
+                            <Text style={styles.avatarHarf}>{ilkHarf}</Text>
+                        )}
+                    </View>
+                )}
             </View>
         );
     };
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#f0f2f5' }}>
-
-            {/* YENİ: Tam Ekran Fotoğraf Görüntüleyici (Modal) */}
+        <SafeAreaView style={[{ flex: 1, backgroundColor: '#f0f2f5' }, karanlikMod && styles.containerDark]}>
             <Modal
                 visible={tamEkranResim !== null}
                 transparent={true}
                 animationType="fade"
-                onRequestClose={() => setTamEkranResim(null)} // Android geri tuşu için
+                onRequestClose={() => setTamEkranResim(null)}
             >
                 <View style={styles.modalArkaPlan}>
                     <TouchableOpacity
@@ -180,7 +244,7 @@ export default function TicketDetailScreen() {
                         <Image
                             source={{ uri: tamEkranResim }}
                             style={styles.modalResim}
-                            resizeMode="contain" // Resmi orantılı şekilde ekrana sığdır
+                            resizeMode="contain"
                         />
                     )}
                 </View>
@@ -190,19 +254,24 @@ export default function TicketDetailScreen() {
                 style={styles.container}
                 behavior={Platform.OS === "ios" ? "padding" : undefined}
             >
-                <View style={styles.header}>
+                <View style={[styles.header, karanlikMod && styles.headerDark]}>
                     <TouchableOpacity onPress={() => router.back()} style={styles.geriButon}>
-                        <Text style={styles.geriYazi}>{"< Geri"}</Text>
+                        <Text style={[styles.geriYazi, karanlikMod && {color: '#4fc3f7'}]}>{"< Geri"}</Text>
                     </TouchableOpacity>
                     <View style={styles.baslikKutusu}>
-                        <Text style={styles.konuBaslik} numberOfLines={1}>{konu}</Text>
-                        <Text style={[styles.durumBadge, durum === 'Çözüldü' ? styles.durumCozuldu : styles.durumAcik]}>{durum}</Text>
+                        <Text style={[styles.konuBaslik, karanlikMod && styles.textDark]} numberOfLines={1}>{konu}</Text>
+                        <Text style={[
+                            styles.durumBadge,
+                            durum === 'Çözüldü' ? styles.durumCozuldu : styles.durumAcik,
+                            karanlikMod && durum !== 'Çözüldü' && {backgroundColor: '#3d2b1f', color: '#f39c12'},
+                            karanlikMod && durum === 'Çözüldü' && {backgroundColor: '#1b3b24', color: '#2ecc71'}
+                        ]}>{durum}</Text>
                     </View>
                 </View>
 
-                <View style={styles.biletDetayKutusu}>
-                    <Text style={styles.detayBaslik}>Sorun Detayı:</Text>
-                    <Text style={styles.detayMetin}>{detay}</Text>
+                <View style={[styles.biletDetayKutusu, karanlikMod && styles.biletDetayKutusuDark]}>
+                    <Text style={[styles.detayBaslik, karanlikMod && styles.tarihMetniDark]}>Sorun Detayı:</Text>
+                    <Text style={[styles.detayMetin, karanlikMod && styles.textDark]}>{detay}</Text>
                 </View>
 
                 {yukleniyor ? (
@@ -214,13 +283,13 @@ export default function TicketDetailScreen() {
                         renderItem={renderMesaj}
                         contentContainerStyle={styles.sohbetAlani}
                         ListEmptyComponent={
-                            <Text style={styles.bosMesaj}>Henüz bir yanıt yok. Buradan iletişime geçebilirsiniz.</Text>
+                            <Text style={[styles.bosMesaj, karanlikMod && styles.tarihMetniDark]}>Henüz bir yanıt yok. Buradan iletişime geçebilirsiniz.</Text>
                         }
                         keyboardShouldPersistTaps="handled"
                     />
                 )}
 
-                <View style={styles.altGrup}>
+                <View style={[styles.altGrup, karanlikMod && styles.altGrupDark]}>
                     {seciliResim && (
                         <View style={styles.onizlemeKutusu}>
                             <Image source={{ uri: seciliResim }} style={styles.onizlemeResmi} />
@@ -236,13 +305,14 @@ export default function TicketDetailScreen() {
                         </TouchableOpacity>
 
                         <TextInput
-                            style={styles.mesajInput}
+                            style={[styles.mesajInput, karanlikMod && styles.mesajInputDark]}
                             placeholder="Mesajınızı yazın..."
+                            placeholderTextColor={karanlikMod ? "#888" : "#999"}
                             value={yeniMesaj}
                             onChangeText={setYeniMesaj}
                             multiline
                         />
-                        <TouchableOpacity style={styles.gonderButon} onPress={mesajGonder}>
+                        <TouchableOpacity style={[styles.gonderButon, karanlikMod && {backgroundColor: '#0277bd'}]} onPress={mesajGonder}>
                             <Text style={styles.gonderYazi}>Gönder</Text>
                         </TouchableOpacity>
                     </View>
@@ -270,9 +340,16 @@ const styles = StyleSheet.create({
     sohbetAlani: { padding: 15, paddingBottom: 20 },
     bosMesaj: { textAlign: 'center', color: '#999', marginTop: 20 },
 
-    mesajSatiri: { marginBottom: 15, maxWidth: '85%' },
-    mesajSol: { alignSelf: 'flex-start' },
-    mesajSag: { alignSelf: 'flex-end' },
+    mesajKapsayici: { flexDirection: 'row', marginBottom: 15, alignItems: 'flex-end', maxWidth: '85%' },
+    satirSol: { alignSelf: 'flex-start' },
+    satirSag: { alignSelf: 'flex-end' },
+
+    kucukAvatar: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginRight: 8, marginBottom: 2, overflow: 'hidden' },
+    kucukAvatarBen: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginLeft: 8, marginBottom: 2, overflow: 'hidden' },
+    kucukAvatarResim: { width: '100%', height: '100%' },
+    avatarHarf: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
+
+    mesajIcerikAlani: { flex: 1 },
     gonderenIsim: { fontSize: 11, color: '#888', marginBottom: 4, marginLeft: 4 },
     baloncuk: { padding: 12, borderRadius: 15, minWidth: 100 },
     baloncukBen: { backgroundColor: '#dcf8c6', borderBottomRightRadius: 0 },
@@ -305,9 +382,21 @@ const styles = StyleSheet.create({
     gonderButon: { backgroundColor: '#007bff', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 20, marginLeft: 10, justifyContent: 'center' },
     gonderYazi: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
 
-    // YENİ: Tam ekran modal stilleri
     modalArkaPlan: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
     modalKapatButon: { position: 'absolute', top: Platform.OS === 'android' ? 50 : 60, right: 20, zIndex: 1, paddingVertical: 8, paddingHorizontal: 15, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20 },
     modalKapatYazi: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-    modalResim: { width: '100%', height: '80%' }
+    modalResim: { width: '100%', height: '80%' },
+
+    // --- KARANLIK MOD STİLLERİ ---
+    containerDark: { backgroundColor: '#121212' },
+    headerDark: { backgroundColor: '#1e1e1e', borderBottomColor: '#333' },
+    biletDetayKutusuDark: { backgroundColor: '#1e1e1e', borderBottomColor: '#333' },
+    altGrupDark: { backgroundColor: '#1e1e1e', borderTopColor: '#333' },
+    mesajInputDark: { backgroundColor: '#2c2c2c', borderColor: '#444', color: '#fff' },
+    textDark: { color: '#fff' },
+    gonderenIsimDark: { color: '#aaa' },
+    metinDark: { color: '#e0e0e0' },
+    tarihMetniDark: { color: '#888' },
+    baloncukBenDark: { backgroundColor: '#005c4b' },
+    baloncukKarsiDark: { backgroundColor: '#2c2c2c', borderColor: '#444' }
 });

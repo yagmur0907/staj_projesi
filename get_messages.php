@@ -10,8 +10,8 @@ $data = json_decode(file_get_contents("php://input"));
 
 if(isset($data->ticket_id)) {
     try {
-        // Hangi kullanıcının (Çalışan mı Destek mi) gönderdiğini bilmek için users tablosuyla birleştirdik
-        $sorgu = "SELECT tm.id, tm.mesaj, tm.image_url, tm.gonderim_tarihi, tm.user_id, u.isim_soyisim, u.role
+        // Gönderen kullanıcının profil fotoğrafını (u.profile_image) da çekmek için sorguya ekledik
+        $sorgu = "SELECT tm.id, tm.mesaj, tm.image_url, tm.gonderim_tarihi, tm.user_id, u.isim_soyisim, u.role, u.profile_image
                   FROM ticket_messages tm
                   JOIN users u ON tm.user_id = u.id 
                   WHERE tm.ticket_id = :ticket_id 
