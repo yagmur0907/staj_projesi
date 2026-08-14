@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, FlatList, ActivityIndicator, Modal, Switch, Image } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, FlatList, ActivityIndicator, Modal, Switch, Image, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker'; // YENİ: Galeri için eklendi
@@ -12,7 +12,8 @@ interface Bilet {
     durum: string;
     assigned_to: number | null;
     atanan_kisi_isim: string | null;
-    okunmamis_mesaj_sayisi?: number; // Rozet için opsiyonel
+    okunmamis_mesaj_sayisi?: number;
+    puan?: number | null;
 }
 
 export default function EmployeeScreen() {
@@ -24,6 +25,7 @@ export default function EmployeeScreen() {
 
     const [biletler, setBiletler] = useState<Bilet[]>([]);
     const [yukleniyor, setYukleniyor] = useState(true);
+    const [yenileniyor, setYenileniyor] = useState(false);
 
     const [userId, setUserId] = useState<string | null>(null);
     const [userRole, setUserRole] = useState<string | null>(null);
@@ -120,6 +122,17 @@ export default function EmployeeScreen() {
             } catch (error) {
                 console.log("Fotoğraf yükleme hatası:", error);
             }
+        }
+    };
+    const sayfayiYenile = async () => {
+        if (!userId) return;
+
+        setYenileniyor(true);
+
+        try {
+            await biletleriGetir(userId);
+        } finally {
+            setYenileniyor(false);
         }
     };
 
@@ -318,6 +331,7 @@ export default function EmployeeScreen() {
                                     konu: item.konu,
                                     detay: item.detay,
                                     durum: item.durum,
+                                    puan: item.puan != null ? item.puan.toString() : '',
                                     isDarkMode: karanlikMod ? '1' : '0'
                                 }
                             })}
@@ -346,9 +360,24 @@ export default function EmployeeScreen() {
 
                             <View style={[styles.aksiyonKutusu, karanlikMod && styles.cizgiDark]}>
                                 {item.assigned_to ? (
-                                    <Text style={[styles.atananKisiMetni, karanlikMod && {color: '#2ecc71'}]}>👤 Sizinle İlgilenen: {item.atanan_kisi_isim}</Text>
+                                    <Text style={[styles.atananKisiMetni, karanlikMod && {color: '#2ecc71'}]}>
+                                        👤 Sizinle İlgilenen: {item.atanan_kisi_isim}
+                                    </Text>
                                 ) : (
-                                    <Text style={[styles.bekliyorMetni, karanlikMod && {color: '#f39c12'}]}>⏳ Destek ekibi ataması bekleniyor...</Text>
+                                    <Text style={[styles.bekliyorMetni, karanlikMod && {color: '#f39c12'}]}>
+                                        ⏳ Destek ekibi ataması bekleniyor...
+                                    </Text>
+                                )}
+
+                                {item.durum === 'Çözüldü' && (
+                                    <Text style={[
+                                        styles.puanBilgisi,
+                                        karanlikMod && styles.textMutedDark
+                                    ]}>
+                                        {item.puan != null
+                                            ? `⭐ Değerlendirmeniz: ${item.puan}/5`
+                                            : '⭐ Henüz değerlendirilmedi'}
+                                    </Text>
                                 )}
                             </View>
                         </TouchableOpacity>
@@ -359,6 +388,14 @@ export default function EmployeeScreen() {
                     contentContainerStyle={{ paddingBottom: 20 }}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={yenileniyor}
+                            onRefresh={sayfayiYenile}
+                            colors={['#28a745']}
+                            tintColor="#28a745"
+                        />
+                    }
                 />
             )}
         </View>
@@ -425,6 +462,12 @@ const styles = StyleSheet.create({
     aksiyonKutusu: { marginTop: 10, borderTopWidth: 1, borderColor: '#f0f0f0', paddingTop: 10 },
     atananKisiMetni: { fontSize: 13, color: '#28a745', fontWeight: 'bold', fontStyle: 'italic' },
     bekliyorMetni: { fontSize: 13, color: '#e67e22', fontStyle: 'italic' },
+    puanBilgisi: {
+        fontSize: 13,
+        color: '#666',
+        marginTop: 8,
+        fontWeight: '600'
+    },
 
     rozetContainer: { position: 'absolute', top: -8, right: -8, backgroundColor: '#ff3b30', borderRadius: 12, minWidth: 24, height: 24, justifyContent: 'center', alignItems: 'center', zIndex: 10, paddingHorizontal: 6, borderWidth: 2, borderColor: '#f5f5f5' },
     rozetYazi: { color: '#fff', fontSize: 12, fontWeight: 'bold' },

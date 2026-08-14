@@ -13,6 +13,8 @@ interface Bilet {
     assigned_to: number | null;
     atanan_kisi_isim: string | null;
     okunmamis_mesaj_sayisi: number;
+    puan: number | null;
+    puan_yorumu: string | null;
 }
 
 const screenWidth = Dimensions.get('window').width;
@@ -360,6 +362,8 @@ export default function SupportScreen() {
                                     konu: item.konu,
                                     detay: item.detay,
                                     durum: item.durum,
+                                    puan: item.puan !== null ? item.puan.toString() : '',
+                                    puanYorumu: item.puan_yorumu || '',
                                     isDarkMode: karanlikMod ? '1' : '0'
                                 }
                             })}
@@ -402,6 +406,27 @@ export default function SupportScreen() {
                                     </TouchableOpacity>
                                 )}
                             </View>
+                            {item.durum === 'Çözüldü' && (
+                                <View style={[styles.degerlendirmeKutusu, karanlikMod && styles.cizgiDark]}>
+                                    {item.puan != null ? (
+                                        <>
+                                            <Text style={[styles.degerlendirmeYazi, karanlikMod && styles.textDark]}>
+                                                ⭐ Çalışan Değerlendirmesi: {item.puan}/5
+                                            </Text>
+
+                                            {item.puan_yorumu && (
+                                                <Text style={[styles.degerlendirmeYorum, karanlikMod && styles.textMutedDark]}>
+                                                    💬 "{item.puan_yorumu}"
+                                                </Text>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <Text style={[styles.degerlendirmeYazi, karanlikMod && styles.textMutedDark]}>
+                                            ⭐ Henüz değerlendirilmedi
+                                        </Text>
+                                    )}
+                                </View>
+                            )}
                         </TouchableOpacity>
                     )}
                     ListEmptyComponent={
@@ -466,6 +491,25 @@ const styles = StyleSheet.create({
     aksiyonKutusu: { marginTop: 10, borderTopWidth: 1, borderColor: '#f0f0f0', paddingTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     atananKisiMetni: { fontSize: 13, color: '#0277bd', fontWeight: 'bold', fontStyle: 'italic', flex: 1 },
     kapaliBiletMetni: { fontSize: 13, color: '#888', fontStyle: 'italic', flex: 1 },
+    degerlendirmeKutusu: {
+        marginTop: 10,
+        paddingTop: 10,
+        borderTopWidth: 1,
+        borderColor: '#f0f0f0',
+    },
+
+    degerlendirmeYazi: {
+        fontSize: 13,
+        fontWeight: 'bold',
+        color: '#555',
+    },
+
+    degerlendirmeYorum: {
+        fontSize: 13,
+        color: '#777',
+        marginTop: 5,
+        fontStyle: 'italic',
+    },
     ataButon: { backgroundColor: '#ff9800', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 5, marginRight: 10 },
     ataButonYazi: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
     aksiyonButon: { backgroundColor: '#4caf50', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 5, alignItems: 'center' },
