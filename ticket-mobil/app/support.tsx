@@ -4,6 +4,17 @@ import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PieChart } from 'react-native-chart-kit';
 import * as ImagePicker from 'expo-image-picker';
+import * as Notifications from 'expo-notifications'; // YENİ: Bildirimler için eklendi
+import * as Device from 'expo-device'; // YENİ: Cihaz kontrolü için eklendi
+
+// YENİ: Uygulama açıkken bildirim geldiğinde nasıl davranacağını belirliyoruz
+Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+    }),
+});
 
 interface Bilet {
     id: number;
@@ -41,6 +52,43 @@ export default function SupportScreen() {
         await AsyncStorage.removeItem('kullaniciRol');
         await AsyncStorage.removeItem('kullaniciId');
         router.replace('/');
+    };
+
+    // YENİ: Bildirim İzni Alma ve Token'ı Sunucuya Kaydetme Fonksiyonu
+    const bildirimTokenKaydet = async (id: string) => {
+        if (!Device.isDevice) {
+            console.log('Bildirimler fiziksel cihazda çalışır (Emülatörde çalışmayabilir).');
+            return;
+        }
+
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+
+        if (existingStatus !== 'granted') {
+            const { status } = await Notifications.requestPermissionsAsync();
+            finalStatus = status;
+        }
+
+        if (finalStatus !== 'granted') {
+            console.log('Bildirim izni reddedildi!');
+            return;
+        }
+
+        try {
+            // Expo Push Token alınıyor
+            const tokenData = await Notifications.getExpoPushTokenAsync();
+            const token = tokenData.data;
+            console.log("Push Token Alındı (Destek):", token);
+
+            // Token veritabanına kaydedilmek üzere sunucuya gönderiliyor
+            await fetch('http://192.168.41.16/staj_projesi/save_push_token.php', {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: id, token: token })
+            });
+        } catch (error) {
+            console.log("Token alınamadı veya kaydedilemedi:", error);
+        }
     };
 
     const biletleriGetir = async () => {
@@ -115,8 +163,11 @@ export default function SupportScreen() {
             setAktifKullaniciId(id);
             setAktifKullaniciRol(rol);
 
-            // Kullanıcıya özel kaydedilmiş profil fotoğrafını hafızadan çekiyoruz
             if (id) {
+                // YENİ: Kullanıcı ID'si alındıktan sonra bildirim token'ını kaydet
+                bildirimTokenKaydet(id);
+
+                // Kullanıcıya özel kaydedilmiş profil fotoğrafını hafızadan çekiyoruz
                 const kaydedilmisResim = await AsyncStorage.getItem(`profil_resim_${id}`);
                 if (kaydedilmisResim) {
                     setProfilResmi(kaydedilmisResim);

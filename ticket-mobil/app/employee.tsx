@@ -2,7 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, FlatList, ActivityIndicator, Modal, Switch, Image, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as ImagePicker from 'expo-image-picker'; // YENİ: Galeri için eklendi
+import * as ImagePicker from 'expo-image-picker';
+import * as Notifications from 'expo-notifications'; // YENİ: Bildirimler için eklendi
+import * as Device from 'expo-device'; // YENİ: Cihaz kontrolü için eklendi
+
+// YENİ: Uygulama açıkken bildirim geldiğinde nasıl davranacağını belirliyoruz
+Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+    }),
+});
 
 // TypeScript için bilet veri yapısını tanımlıyoruz
 interface Bilet {
@@ -34,7 +45,7 @@ export default function EmployeeScreen() {
     const [profilModalGorunur, setProfilModalGorunur] = useState(false);
     const [karanlikMod, setKaranlikMod] = useState(false);
 
-    // YENİ: Profil Fotoğrafı State'i
+    // Profil Fotoğrafı State'i
     const [profilResmi, setProfilResmi] = useState<string | null>(null);
 
     const router = useRouter();
@@ -49,6 +60,43 @@ export default function EmployeeScreen() {
         kullaniciyiYukleVeBiletleriGetir();
     }, []);
 
+    // YENİ: Bildirim İzni Alma ve Token'ı Sunucuya Kaydetme Fonksiyonu
+    const bildirimTokenKaydet = async (id: string) => {
+        if (!Device.isDevice) {
+            console.log('Bildirimler fiziksel cihazda çalışır (Emülatörde çalışmayabilir).');
+            return;
+        }
+
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+
+        if (existingStatus !== 'granted') {
+            const { status } = await Notifications.requestPermissionsAsync();
+            finalStatus = status;
+        }
+
+        if (finalStatus !== 'granted') {
+            console.log('Bildirim izni reddedildi!');
+            return;
+        }
+
+        try {
+            // Expo Push Token alınıyor
+            const tokenData = await Notifications.getExpoPushTokenAsync();
+            const token = tokenData.data;
+            console.log("Push Token Alındı:", token);
+
+            // Token veritabanına kaydedilmek üzere sunucuya gönderiliyor
+            await fetch('http://192.168.41.16/staj_projesi/save_push_token.php', {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: id, token: token })
+            });
+        } catch (error) {
+            console.log("Token alınamadı veya kaydedilemedi:", error);
+        }
+    };
+
     const kullaniciyiYukleVeBiletleriGetir = async () => {
         try {
             const id = await AsyncStorage.getItem('kullaniciId');
@@ -57,7 +105,10 @@ export default function EmployeeScreen() {
                 setUserId(id);
                 setUserRole(rol);
 
-                // YENİ: Kullanıcıya özel kaydedilmiş profil fotoğrafını hafızadan çekiyoruz
+                // YENİ: Kullanıcı ID'si alındıktan sonra bildirim token'ını kontrol et ve kaydet
+                bildirimTokenKaydet(id);
+
+                // Kullanıcıya özel kaydedilmiş profil fotoğrafını hafızadan çekiyoruz
                 const kaydedilmisResim = await AsyncStorage.getItem(`profil_resim_${id}`);
                 if (kaydedilmisResim) {
                     setProfilResmi(kaydedilmisResim);
@@ -73,7 +124,6 @@ export default function EmployeeScreen() {
         }
     };
 
-    // YENİ: Galeriden fotoğraf seçip hem AsyncStorage'a hem sunucuya kaydeden fonksiyon
     const profilFotografiSec = async () => {
         const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (permissionResult.granted === false) {
@@ -88,14 +138,12 @@ export default function EmployeeScreen() {
             quality: 0.7,
         });
 
-        if (!result.canceled && userId) { // 'aktifKullaniciId' hatası 'userId' ile düzeltildi
+        if (!result.canceled && userId) {
             const localUri = result.assets[0].uri;
 
-            // 1. Resmi Telefonda Göstermek için State'e Ata ve Hafızaya Kaydet
             setProfilResmi(localUri);
             await AsyncStorage.setItem(`profil_resim_${userId}`, localUri);
 
-            // 2. Resmi Sunucuya (XAMPP) Yükle (Böylece herkes görebilecek)
             const formData = new FormData();
             formData.append('user_id', userId);
 
@@ -124,6 +172,7 @@ export default function EmployeeScreen() {
             }
         }
     };
+
     const sayfayiYenile = async () => {
         if (!userId) return;
 
@@ -210,7 +259,6 @@ export default function EmployeeScreen() {
                             </TouchableOpacity>
                         </View>
 
-                        {/* YENİ: Yuvarlak Profil Fotoğrafı Alanı */}
                         <View style={styles.profilResimMerkez}>
                             <TouchableOpacity onPress={profilFotografiSec} style={styles.avatarKutusu}>
                                 {profilResmi ? (
@@ -336,7 +384,6 @@ export default function EmployeeScreen() {
                                 }
                             })}
                         >
-                            {/* Rozet (Çalışanlar için de mesaj bildirimi) */}
                             {(item.okunmamis_mesaj_sayisi ?? 0) > 0 && (
                                 <View style={[styles.rozetContainer, karanlikMod && {borderColor: '#1e1e1e'}]}>
                                     <Text style={styles.rozetYazi}>
@@ -403,7 +450,6 @@ export default function EmployeeScreen() {
 }
 
 const styles = StyleSheet.create({
-    // --- STANDART MOD (LIGHT) STİLLERİ ---
     container: { flex: 1, backgroundColor: '#f5f5f5', padding: 20, paddingTop: 50 },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
     baslik: { fontSize: 24, fontWeight: 'bold', color: '#333' },
@@ -417,7 +463,6 @@ const styles = StyleSheet.create({
     profilBaslikYazi: { fontSize: 18, fontWeight: 'bold', color: '#333' },
     kapatIkonu: { fontSize: 20, color: '#999', fontWeight: 'bold' },
 
-    // YENİ: Profil Resmi Stilleri
     profilResimMerkez: { alignItems: 'center', marginBottom: 20 },
     avatarKutusu: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#e0e0e0', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', borderWidth: 2, borderColor: '#28a745' },
     avatarResim: { width: '100%', height: '100%' },
@@ -472,7 +517,6 @@ const styles = StyleSheet.create({
     rozetContainer: { position: 'absolute', top: -8, right: -8, backgroundColor: '#ff3b30', borderRadius: 12, minWidth: 24, height: 24, justifyContent: 'center', alignItems: 'center', zIndex: 10, paddingHorizontal: 6, borderWidth: 2, borderColor: '#f5f5f5' },
     rozetYazi: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
 
-    // --- KARANLIK MOD (DARK MODE) STİLLERİ ---
     containerDark: { backgroundColor: '#121212' },
     kutuDark: { backgroundColor: '#1e1e1e', shadowOpacity: 0, borderColor: '#333', borderWidth: 1 },
     textDark: { color: '#ffffff' },
